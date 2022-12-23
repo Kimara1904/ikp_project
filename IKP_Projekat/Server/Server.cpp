@@ -177,6 +177,7 @@ int main(void)
             {
                 if (FD_ISSET(workerRoleSockets[i], &writefds))
                 {
+                    //Ovde ce biti thread koji poziva handleWorkerRole funkiciju.                    
                     handleWorkerRole(workerRoleSockets[i], dataBuffer);
                 }
             }

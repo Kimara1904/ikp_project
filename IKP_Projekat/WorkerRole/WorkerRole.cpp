@@ -23,6 +23,7 @@ int __cdecl main(int argc, char** argv)
 {
     SOCKET workerRoleSocket = INVALID_SOCKET;
     int iResult;
+    int sResult;
     char dataBuffer[DEFAULT_BUFLEN];
 
     if (argc != 1)
@@ -71,7 +72,20 @@ int __cdecl main(int argc, char** argv)
         if (iResult > 1)
         {
             printf("Message received from server: %s\n", dataBuffer);
-        }        
+
+            //OBRADA PODATAKA
+            char processed[DEFAULT_BUFLEN] = "Done with request... sending it back... ";
+            strcat(processed, dataBuffer);
+            sResult = send(workerRoleSocket, processed, sizeof(processed), 0);
+
+            if (sResult == SOCKET_ERROR)
+            {
+                printf("Sending processed data failed with error: %d\n", WSAGetLastError());
+                closesocket(workerRoleSocket);
+                WSACleanup();
+                return;
+            }
+        }
     }
 
     closesocket(workerRoleSocket);

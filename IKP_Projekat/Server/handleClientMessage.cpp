@@ -17,6 +17,8 @@ void handleClient(SOCKET clientSocket, char* dataBuffer)
     {
         iResult = recv(clientSocket, dataBuffer, DEFAULT_BUFLEN, 0);
 
+        //OVDE CEMO STAVLJATI U QUEUE
+
         if (iResult > 0)
         {
             printf("Received %d bytes from client: %s\n", iResult, dataBuffer);

@@ -12,6 +12,8 @@ void handleWorkerRole(SOCKET workerRoleSocket, char* dataBuffer)
 {
     int iResult;
 
+    //CITAMO IZ QUEUE
+
     do
     {        
         iResult = send(workerRoleSocket, dataBuffer, (int)strlen(dataBuffer) + 1, 0);

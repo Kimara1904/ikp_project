@@ -23,7 +23,7 @@ int __cdecl main(int argc, char** argv)
 {
     SOCKET connectSocket = INVALID_SOCKET;
     int iResult;
-    char message[DEFAULT_BUFLEN]; //Test 
+    char message[DEFAULT_BUFLEN];
 
     if (argc != 1)
     {
