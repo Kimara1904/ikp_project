@@ -22,12 +22,14 @@
     <ClCompile Include="connectHandler.cpp" />
     <ClCompile Include="handleClientMessage.cpp" />
     <ClCompile Include="handleWorkerRoleMessage.cpp" />
+    <ClCompile Include="ObserverThreadFunction.cpp" />
     <ClCompile Include="Server.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="connectHandler.h" />
     <ClInclude Include="handleClientMessage.h" />
     <ClInclude Include="handleWorkerRoleMessage.h" />
+    <ClInclude Include="ObserverThreadFunction.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>

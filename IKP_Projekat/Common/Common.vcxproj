@@ -139,16 +139,10 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="HashSet.cpp" />
-    <ClCompile Include="Queue.cpp" />
     <ClCompile Include="Source.cpp" />
-    <ClCompile Include="WorkerRoleList.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="HashSet.h" />
-    <ClInclude Include="Queue.h" />
     <ClInclude Include="Structs.h" />
-    <ClInclude Include="WorerRoleList.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

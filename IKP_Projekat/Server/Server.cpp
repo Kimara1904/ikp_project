@@ -9,7 +9,7 @@
 #include "conio.h"
 #include "connectHandler.h"
 #include "handleClientMessage.h"
-#include "handleWorkerRoleMessage.h"
+#include "ObserverThreadFunction.h"
 
 #pragma comment (lib, "Ws2_32.lib")
 #pragma comment (lib, "Mswsock.lib")

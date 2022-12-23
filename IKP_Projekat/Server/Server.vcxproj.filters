@@ -5,10 +5,12 @@
     <ClCompile Include="handleClientMessage.cpp" />
     <ClCompile Include="handleWorkerRoleMessage.cpp" />
     <ClCompile Include="Server.cpp" />
+    <ClCompile Include="ObserverThreadFunction.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="connectHandler.h" />
     <ClInclude Include="handleClientMessage.h" />
     <ClInclude Include="handleWorkerRoleMessage.h" />
+    <ClInclude Include="ObserverThreadFunction.h" />
   </ItemGroup>
 </Project>

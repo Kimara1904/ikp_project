@@ -62,6 +62,12 @@ int __cdecl main(int argc, char** argv)
     while (true)
     {        
         iResult = recv(workerRoleSocket, dataBuffer, DEFAULT_BUFLEN, 0);
+        if (strcmp(dataBuffer, "quit") == 0)
+        {
+            closesocket(workerRoleSocket);
+            printf("Disconnected from server.");
+            exit(1);
+        }
         if (iResult > 1)
         {
             printf("Message received from server: %s\n", dataBuffer);
