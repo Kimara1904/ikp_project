@@ -375,4 +375,12 @@ typedef struct dtparam
 }DTParam;
 #pragma endregion
 
+#pragma region WRFun
+typedef struct wrparam
+{
+	ListItem* worker;
+	HashSet* hs;
+}WRParam;
+#pragma endregion
+
 #endif

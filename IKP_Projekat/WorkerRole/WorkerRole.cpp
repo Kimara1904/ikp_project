@@ -1,17 +1,11 @@
 #define WIN32_LEAN_AND_MEAN
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 
-#include <windows.h>
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include "conio.h"
+#include "../Common/Structs.h"
 
 #pragma comment (lib, "Ws2_32.lib")
 #pragma comment (lib, "Mswsock.lib")
 #pragma comment (lib, "AdvApi32.lib")
-
 #pragma pack(1)
 
 #define DEFAULT_BUFLEN 512
@@ -65,18 +59,25 @@ int __cdecl main(int argc, char** argv)
         iResult = recv(workerRoleSocket, dataBuffer, DEFAULT_BUFLEN, 0);
         if (strcmp(dataBuffer, "quit") == 0)
         {
+            //SLANJE QUIT WMT-U
             closesocket(workerRoleSocket);
             printf("Disconnected from server.");
-            exit(1);
+            break;
         }
         if (iResult > 1)
         {
+            //SLANJE PORUKE WMT-U I WR
             printf("Message received from server: %s\n", dataBuffer);
 
             //OBRADA PODATAKA
+
+            IdMessagePair* messagePair = (IdMessagePair*)dataBuffer;
+            
             char processed[DEFAULT_BUFLEN] = "Done with request... sending it back... ";
-            strcat_s(processed, dataBuffer);
-            sResult = send(workerRoleSocket, processed, sizeof(processed), 0);
+            strcat_s(processed, messagePair->message);
+            sResult = send(workerRoleSocket, messagePair->clientId + processed, sizeof(messagePair->clientId + processed), 0);
+
+            printf("Sending back data to loadBalancer. Request was originally from: client #%d", messagePair->clientId);
 
             if (sResult == SOCKET_ERROR)
             {

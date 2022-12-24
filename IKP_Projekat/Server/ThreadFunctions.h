@@ -87,7 +87,7 @@ DWORD WINAPI handleClientRecieve(LPVOID params) //Kada primimo poruku od klijent
     int clientId = clientItem->id;
     char* clientMessage = clientItem->request_message;
 
-    do
+    while(true)
     {
         iResult = recv(clientSocket, clientMessage, DEFAULT_BUFLEN, 0);
         clientMessage[iResult] = '\0';
@@ -98,9 +98,7 @@ DWORD WINAPI handleClientRecieve(LPVOID params) //Kada primimo poruku od klijent
         EnterCriticalSection(&parameters->cs);
         Enqueue(parameters->queue, clientMessagePair);
         LeaveCriticalSection(&parameters->cs);
-    } while (iResult > 0);
-
-    return 0;
+    }
 }
 
 //SLANJE WORKER ROLI
@@ -122,10 +120,41 @@ DWORD WINAPI handleWorkerRoleSend(LPVOID params)
     }
 }
 
-//SALJEMO SA WORKER ROLE ODOGOVARAJUCEM KLIJENTU
+//SALJEMO SA WORKER ROLE ODOGOVARAJUCEM KLIJENTU - MAYBE CHANGE
 DWORD WINAPI handleWorkerRoleReceive(LPVOID params)
 {
-    return 0;
+    int iResult;   
+    int sResult;
+    WRParam* parameters = (WRParam*)params;
+    ListItem* worker = parameters->worker;
+    HashSet* hs = parameters->hs;
+
+    while (true)
+    {        
+        iResult = recv(worker->wr->socket, worker->wr->message_box, DEFAULT_BUFLEN, 0);
+
+        if (iResult > 1)
+        {
+            IdMessagePair* clientInfo = (IdMessagePair*)worker->wr->message_box;
+            HashItem* client = findNodeHash(hs, clientInfo->clientId % hs->size, clientInfo->clientId);
+
+            sResult = send(client->clientInfo->socket, clientInfo->message, DEFAULT_BUFLEN, 0);
+
+            printf("Sending back data CLIENT #%d", clientInfo->clientId);
+
+            if (sResult == SOCKET_ERROR)
+            {
+                printf("Sending data to CLIENT #%d failed\n", clientInfo->clientId);
+            }
+        }
+        //NEED MAYBE FIX
+        else
+        {
+            printf("Error receiving done message from WR %d:", worker->wr->id);
+            closesocket(worker->wr->socket);
+            WSACleanup();
+        }
+    }
 }
 
 //OBSERVER THREAD - LITTLE CHANGE NEEDED MAYBE
@@ -163,24 +192,26 @@ DWORD WINAPI OTFun(LPVOID params)
 //DISPATCH THREAD
 DWORD WINAPI DTFun(LPVOID param)
 {
-    DTParam* parameters = (DTParam*) param;
+    DTParam* parameters = (DTParam*)param;
     RingBufferQueue* queue = parameters->queue;
     List* freeWorkersList = parameters->freeWorkerRole;
-    List* busyWorkerList = parameters->busyWorkerRole;
+    List* busyWorkerList = parameters->busyWorkerRole;    
+    while (true)
+    {
+        ListItem* freeWorker = find(freeWorkersList, freeWorkersList->head->wr->id);
 
-    ListItem* freeWorker = find(freeWorkersList, freeWorkersList->head->wr->id);
-    EnterCriticalSection(&freeWorker->wr->cs);
-    IdMessagePair messagePair = Dequeue(queue);
-    LeaveCriticalSection(&freeWorker->wr->cs);
+        EnterCriticalSection(&freeWorker->wr->cs);
+        IdMessagePair messagePair = Dequeue(queue);
+        LeaveCriticalSection(&freeWorker->wr->cs);
 
-    char message[DEFAULT_BUFLEN];
-    strcpy_s(message, DEFAULT_BUFLEN, messagePair.clientId + messagePair.message);
-    freeWorker->wr->busy = true;
-    strcpy_s(freeWorker->wr->message_box, DEFAULT_BUFLEN, message);
+        char message[DEFAULT_BUFLEN];
+        strcpy_s(message, DEFAULT_BUFLEN, messagePair.clientId + messagePair.message);
+        freeWorker->wr->busy = true;
+        strcpy_s(freeWorker->wr->message_box, DEFAULT_BUFLEN, message);
 
-    move(freeWorkersList, busyWorkerList, freeWorker);
+        move(freeWorkersList, busyWorkerList, freeWorker);
 
-    ReleaseSemaphore(freeWorker->wr->semaphore, 1, NULL);
-    return 0;
+        ReleaseSemaphore(freeWorker->wr->semaphore, 1, NULL);
+    }    
 }
 #endif
