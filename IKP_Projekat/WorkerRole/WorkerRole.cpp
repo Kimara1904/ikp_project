@@ -75,7 +75,7 @@ int __cdecl main(int argc, char** argv)
 
             //OBRADA PODATAKA
             char processed[DEFAULT_BUFLEN] = "Done with request... sending it back... ";
-            strcat(processed, dataBuffer);
+            strcat_s(processed, dataBuffer);
             sResult = send(workerRoleSocket, processed, sizeof(processed), 0);
 
             if (sResult == SOCKET_ERROR)
@@ -83,7 +83,7 @@ int __cdecl main(int argc, char** argv)
                 printf("Sending processed data failed with error: %d\n", WSAGetLastError());
                 closesocket(workerRoleSocket);
                 WSACleanup();
-                return;
+                return 1;
             }
         }
     }

@@ -4,38 +4,37 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <winsock2.h>
+#include <ws2tcpip.h>
 #include <windows.h>
 #include "conio.h"
+
+#define DEFAULT_BUFLEN 512
+#define RING_SIZE 128
 
 typedef struct client_struct_list_item
 {
 	int id;
 	SOCKET socket;
-	char* request_message;
+	char request_message[DEFAULT_BUFLEN];
 }ClientListItem;
-
 
 typedef struct worker_role_struct
 {
 	int id;
 	bool busy;
 	SOCKET socket;
-	char* message_box;
+	char message_box[DEFAULT_BUFLEN];
 	CRITICAL_SECTION cs;
 	HANDLE semaphore;
 }WorkerRole;
-// DA LI SOCKET, KRITICNE SEKCIJE I SEMAFORI TREBA DA BUDU POKAZIVACI???
 
 typedef struct clientid_message_pair
 {
 	int clientId;
-	char* message;
+	char message[DEFAULT_BUFLEN];
 }IdMessagePair;
 
-
-
 #pragma region Queue
-#define RING_SIZE 128 //??
 typedef struct queue
 {
 	unsigned int tail;
@@ -49,9 +48,8 @@ IdMessagePair Dequeue(RingBufferQueue* queue)
 	if (queue->cnt == 0)
 	{
 		char mess[] = "Empty queue";
-		IdMessagePair idm = { -1, mess };
-		idm.clientId = -1;
-
+		IdMessagePair idm = { -1, ""};
+		strcpy_s(idm.message, DEFAULT_BUFLEN, mess);
 		return idm;
 	}
 	int index = queue->head;
@@ -86,8 +84,6 @@ float Capacity(RingBufferQueue* queue)
 	return (float)(queue->cnt) / RING_SIZE * 100;
 }
 #pragma endregion
-
-
 
 #pragma region HashSet
 typedef struct hash_item
@@ -216,9 +212,6 @@ void destroyHashSet(HashSet* hs)
 }
 #pragma endregion
 
-
-
-
 #pragma region WorkerRoleList
 typedef struct list_item
 {
@@ -226,16 +219,12 @@ typedef struct list_item
 	struct list_item* next;
 }ListItem;
 
-
 typedef struct list
 {
 	int listCounter = 0;
 	ListItem* head;
 	ListItem* tail;
 }List;
-//dodati tail
-//implementirati zaseban remove
-//bez free
 
 bool add(List* list, WorkerRole* wr) // at end
 {
@@ -366,6 +355,24 @@ typedef struct otparam
 	RingBufferQueue* queue;
 	List* workerList;
 }OTParam;
+#pragma endregion
+
+#pragma region WTFun
+typedef struct wtparam
+{
+	RingBufferQueue* queue;
+	ClientListItem* client;
+	CRITICAL_SECTION cs;
+}WTParam;
+#pragma endregion
+
+#pragma region DTFun
+typedef struct dtparam
+{
+	RingBufferQueue* queue;
+	List* freeWorkerRole;
+	List* busyWorkerRole;
+}DTParam;
 #pragma endregion
 
 #endif
