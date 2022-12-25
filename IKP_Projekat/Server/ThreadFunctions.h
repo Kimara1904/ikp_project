@@ -86,10 +86,9 @@ DWORD WINAPI handleClientRecieve(LPVOID params) //Kada primimo poruku od klijent
     int iResult;
 
     WTParam* parameters = (WTParam*)params;
-    ClientListItem* clientItem = parameters->client;
-    SOCKET clientSocket = clientItem->socket;
-    int clientId = clientItem->id;
-    char* clientMessage = clientItem->request_message;
+    SOCKET clientSocket = parameters->client->socket;
+    int clientId = parameters->client->id;
+    char* clientMessage = parameters->client->request_message;
 
     while(true)
     {
@@ -168,64 +167,59 @@ DWORD WINAPI OTFun(LPVOID params)
 {
     while (true)
     {
-        OTParam* parameters = (OTParam*)params;
-        RingBufferQueue* queue = parameters->queue;
-        List* freeWorkerRoles = parameters->workerList;
-        float capacity = Capacity(queue);
+        OTParam* parameters = (OTParam*)params;        
+        float capacity = Capacity(parameters->queue);
 
         if (capacity > 70)
         {
             system("../../WorkerRole/Debug/WorkerRole.exe");
         }
-        else if (capacity < 30 && freeWorkerRoles->listCounter > 1)
+        else if (capacity < 30 && parameters->workerList->listCounter > 1)
         {
-            int id = freeWorkerRoles->head->wr->id;
-            SOCKET s = freeWorkerRoles->head->wr->socket;
+            int id = parameters->workerList->head->wr->id;
+            SOCKET s = parameters->workerList->head->wr->socket;
             char message[5] = "quit";
-            strcpy_s(freeWorkerRoles->head->wr->message_box, DEFAULT_BUFLEN, message);
+            strcpy_s(parameters->workerList->head->wr->message_box, DEFAULT_BUFLEN, message);
             //Mozda ovo prebaciti u WMT kada ga implementiramo!
-            if (!remove(freeWorkerRoles, id))
+            if (!remove(parameters->workerList, id))
             {
                 printf("ERROR: Something is wrong with removing first element of free Worker Roles!!!");
             }
             printf("Successfully turned off Worker Role instance with id=%d.", id);
-            ReleaseSemaphore(freeWorkerRoles->head->wr->semaphore, 1, NULL);
+            ReleaseSemaphore(parameters->workerList->head->wr->semaphore, 1, NULL);
         }
         Sleep(5000);
     }
 }
 
 //DISPATCH THREAD
-DWORD WINAPI DTFun(LPVOID param)
+DWORD WINAPI DTFun(LPVOID params)
 {
-    DTParam* parameters = (DTParam*)param;
-    RingBufferQueue* queue = parameters->queue;
-    List* freeWorkersList = parameters->freeWorkerRole;
-    List* busyWorkersList = parameters->busyWorkerRole;    
+    DTParam* parameters = (DTParam*)params;     
     while (true)
     {
 
-        if (Capacity(queue) == 0)
+        if (Capacity(parameters->queue) == 0)
         {
             continue;
         }
 
-        if (freeWorkersList->listCounter == 0)
+        if (parameters->freeWorkerRole->listCounter == 0)
         {
             continue;
         }
 
-        ListItem* freeWorker = find(freeWorkersList, freeWorkersList->head->wr->id);
+        ListItem* freeWorker = find(parameters->freeWorkerRole, parameters->freeWorkerRole->head->wr->id);
 
         EnterCriticalSection(&freeWorker->wr->cs);
-        IdMessagePair messagePair = Dequeue(queue);
+        IdMessagePair messagePair = Dequeue(parameters->queue);
         LeaveCriticalSection(&freeWorker->wr->cs);
 
         char message[DEFAULT_BUFLEN];
         strcpy_s(message, DEFAULT_BUFLEN, messagePair.clientId + messagePair.message);
         strcpy_s(freeWorker->wr->message_box, DEFAULT_BUFLEN, message);
 
-        move(freeWorkersList, busyWorkersList, freeWorker);
+        move(parameters->freeWorkerRole, parameters->busyWorkerRole, freeWorker);
 
         ReleaseSemaphore(freeWorker->wr->semaphore, 1, NULL);
     }    
