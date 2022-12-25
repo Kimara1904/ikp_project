@@ -347,6 +347,23 @@ ListItem* find(List* list, int index) // find node by index
 		return NULL;
 	}
 }
+
+void deleteList(List* list)
+{
+	ListItem* current = list->head;
+	ListItem* next;
+	while (current != NULL)
+	{
+		next = current->next;
+		free(current->wr);
+		free(current);
+		current = next;
+	}
+
+	list->head = NULL;
+	list->tail = NULL;
+	list->listCounter = 0;
+}
 #pragma endregion
 
 #pragma region OTFun
