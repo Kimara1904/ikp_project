@@ -80,6 +80,11 @@ float Capacity(RingBufferQueue* queue)
 		return -1;
 	}
 
+	if (queue->cnt == 0)
+	{
+		return -1;
+	}
+
 	return (float)(queue->cnt) / RING_SIZE * 100;
 }
 #pragma endregion

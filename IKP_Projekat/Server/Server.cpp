@@ -12,6 +12,9 @@ int main(void)
     HANDLE CMT, OT, DT, WMT;
     HashSet* hashSet = createHashSet(MAX_CLIENTS);
     RingBufferQueue* queue = (RingBufferQueue*)malloc(sizeof(RingBufferQueue));
+    queue->cnt = 0;
+    queue->head = 0;
+    queue->tail = 0;
     List* freeWorkerRoles = (List*)malloc(sizeof(List));
     freeWorkerRoles->listCounter = 0;
     freeWorkerRoles->head = NULL;
@@ -27,35 +30,27 @@ int main(void)
     wmtparam->hashSet = hashSet;
     wmtparam->cs = bufferQueue;
 
-    WMT = CreateThread(NULL, 0, &WMTFunction, wmtparam, 0, &WMTID);
-
     OTParam* otparam = (OTParam*)malloc(sizeof(OTParam));
     otparam->workerList = freeWorkerRoles;
     otparam->queue = queue;
-
-    OT = CreateThread(NULL, 0, &OTFun, otparam, 0, &OTID);
 
     DTParam* dtparam = (DTParam*)malloc(sizeof(DTParam));
     dtparam->busyWorkerRole = busyWorkerRoles;
     dtparam->freeWorkerRole = freeWorkerRoles;
     dtparam->queue = queue;
 
-    DT = CreateThread(NULL, 0, &DTFun, dtparam, 0, &DTID);
-
     CMTParam* cmtparam = (CMTParam*)malloc(sizeof(CMTParam));
     cmtparam->cs = bufferQueue;
     cmtparam->hashSet = hashSet;
     cmtparam->queue = queue;
 
+    WMT = CreateThread(NULL, 0, &WMTFunction, wmtparam, 0, &WMTID);   
+
+    OT = CreateThread(NULL, 0, &OTFun, otparam, 0, &OTID);
+
+    DT = CreateThread(NULL, 0, &DTFun, dtparam, 0, &DTID);  
+
     CMT = CreateThread(NULL, 0, &CMTFunction, cmtparam, 0, &CMTID);
-
-    
-
-   
-
-    
-
-    
 
     WSACleanup();
     CloseHandle(CMT);

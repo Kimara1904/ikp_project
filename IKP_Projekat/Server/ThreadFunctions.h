@@ -201,7 +201,7 @@ DWORD WINAPI DTFun(LPVOID param)
     DTParam* parameters = (DTParam*)param;
     RingBufferQueue* queue = parameters->queue;
     List* freeWorkersList = parameters->freeWorkerRole;
-    List* busyWorkerList = parameters->busyWorkerRole;    
+    List* busyWorkersList = parameters->busyWorkerRole;    
     while (true)
     {
 
@@ -225,7 +225,7 @@ DWORD WINAPI DTFun(LPVOID param)
         strcpy_s(message, DEFAULT_BUFLEN, messagePair.clientId + messagePair.message);
         strcpy_s(freeWorker->wr->message_box, DEFAULT_BUFLEN, message);
 
-        move(freeWorkersList, busyWorkerList, freeWorker);
+        move(freeWorkersList, busyWorkersList, freeWorker);
 
         ReleaseSemaphore(freeWorker->wr->semaphore, 1, NULL);
     }    
