@@ -103,6 +103,7 @@ DWORD WINAPI handleClientRecieve(LPVOID params) //Kada primimo poruku od klijent
         Enqueue(parameters->queue, clientMessagePair);
         LeaveCriticalSection(&parameters->cs);
     }
+    free(parameters);
 }
 
 //SLANJE WORKER ROLI
@@ -159,6 +160,7 @@ DWORD WINAPI handleWorkerRoleReceive(LPVOID params)
             WSACleanup();
         }
     }
+    free(parameters);
 }
 
 //OBSERVER THREAD - LITTLE CHANGE NEEDED MAYBE
@@ -202,6 +204,17 @@ DWORD WINAPI DTFun(LPVOID param)
     List* busyWorkerList = parameters->busyWorkerRole;    
     while (true)
     {
+
+        if (Capacity(queue) == 0)
+        {
+            continue;
+        }
+
+        if (freeWorkersList->listCounter == 0)
+        {
+            continue;
+        }
+
         ListItem* freeWorker = find(freeWorkersList, freeWorkersList->head->wr->id);
 
         EnterCriticalSection(&freeWorker->wr->cs);
@@ -210,7 +223,6 @@ DWORD WINAPI DTFun(LPVOID param)
 
         char message[DEFAULT_BUFLEN];
         strcpy_s(message, DEFAULT_BUFLEN, messagePair.clientId + messagePair.message);
-        freeWorker->wr->busy = true;
         strcpy_s(freeWorker->wr->message_box, DEFAULT_BUFLEN, message);
 
         move(freeWorkersList, busyWorkerList, freeWorker);
@@ -227,6 +239,10 @@ DWORD WINAPI CMTFunction(LPVOID params)
     unsigned long  mode = 1;
     short lastIndex = 0;
     char dataBuffer[DEFAULT_BUFLEN];
+    DWORD TID[MAX_CLIENTS];
+    HANDLE threads[MAX_CLIENTS];
+    CMTParam* parameters = (CMTParam*)params;
+    ClientListItem* client = NULL;
 
     memset(clientSockets, 0, MAX_CLIENTS * sizeof(SOCKET));
     listenSocket = connectTo(DEFAULT_PORT_CLIENT);
@@ -277,11 +293,11 @@ DWORD WINAPI CMTFunction(LPVOID params)
             //printf("Timeout Expired!\n");
             continue;
         }
-
-        else if (FD_ISSET(listenSocket, &readfds))
+        else if (FD_ISSET(listenSocket, &readfds)) // Connect with client
         {
             sockaddr_in clientAddr;
             int clientAddrSize = sizeof(struct sockaddr_in);
+            
 
             clientSockets[lastIndex] = accept(listenSocket, (struct sockaddr*)&clientAddr, &clientAddrSize);
 
@@ -296,18 +312,42 @@ DWORD WINAPI CMTFunction(LPVOID params)
                     printf("ioctlsocket failed with error.");
                     continue;
                 }
+
+                client = (ClientListItem*)malloc(sizeof(ClientListItem));
+                client->id = lastIndex;
+                client->socket = clientSockets[lastIndex];
+                strcpy_s(client->request_message, DEFAULT_BUFLEN, "");
+
+                insertHashItem(parameters->hashSet, lastIndex % MAX_CLIENTS, client);
+
+                WTParam* wtp = (WTParam*)malloc(sizeof(WTParam));
+                wtp->client = client;
+                wtp->cs = parameters->cs;
+                wtp->queue = parameters->queue;
+
+                threads[lastIndex] = CreateThread(NULL, 0, &handleClientRecieve, wtp, 0, &TID[lastIndex]);
+                /*free(wtp);*/
                 lastIndex++;
                 printf("New client #%d accepted. We have %d clients spaces left.\n", lastIndex, MAX_CLIENTS - lastIndex);
             }
         }
-        else
+        else // Get a message
         {
+            //proveravamo da li je poslat quit i gasimo threads ako dodje do toga
             for (int i = 0; i < lastIndex; i++)
             {
                 if (FD_ISSET(clientSockets[i], &readfds))
                 {
-                    //NNEDS FIX
-                    //handleClient(clientSockets[i], dataBuffer);
+                    int iResult = recv(clientSockets[i], dataBuffer, DEFAULT_BUFLEN, 0);
+
+                    dataBuffer[iResult] = '\0';
+
+                    if (strcmp(dataBuffer, "quit") == 0)
+                    {
+                        deleteHashItem(parameters->hashSet, i% MAX_CLIENTS, i);
+                        free(client);
+                        CloseHandle(threads[i]);
+                    }
                 }
             }
         }
@@ -331,6 +371,13 @@ DWORD WINAPI WMTFunction(LPVOID params)
     unsigned long  mode = 1;
     short lastIndexWR = 0;
     char dataBuffer[DEFAULT_BUFLEN];
+    DWORD WSID[MAX_CLIENTS];
+    HANDLE WSThreads[MAX_CLIENTS];
+    DWORD WRID[MAX_CLIENTS];
+    HANDLE WRThreads[MAX_CLIENTS];
+    HANDLE Semaphore[MAX_CLIENTS];
+    WMTParam* parameters = (WMTParam*)params;
+    WorkerRole* worker = NULL;
 
     memset(workerRoleSockets, 0, MAX_WORKER_ROLE * sizeof(SOCKET));
 
@@ -360,23 +407,17 @@ DWORD WINAPI WMTFunction(LPVOID params)
         FD_ZERO(&readfdsWR);
         FD_ZERO(&writefds);
 
-
-
         if (lastIndexWR != MAX_WORKER_ROLE)
         {
             FD_SET(listenSocketWR, &readfdsWR);
         }
-
-
 
         for (int i = 0; i < lastIndexWR; i++)
         {
             FD_SET(workerRoleSockets[i], &writefds);
         }
 
-
         int selectResultWR = select(0, &readfdsWR, &writefds, NULL, &timeVal);
-
 
         if (selectResultWR == SOCKET_ERROR)
         {
@@ -390,7 +431,7 @@ DWORD WINAPI WMTFunction(LPVOID params)
             //printf("TimeoutWR Expired!\n");
             continue;
         }
-        else if (FD_ISSET(listenSocketWR, &readfdsWR))
+        else if (FD_ISSET(listenSocketWR, &readfdsWR)) // Connect with Worker Role
         {
             sockaddr_in workerRoleAddr;
             int workerRoleAddrSize = sizeof(struct sockaddr_in);
@@ -408,18 +449,52 @@ DWORD WINAPI WMTFunction(LPVOID params)
                     printf("ioctlsocket failed with error.");
                     continue;
                 }
+                
+                worker = (WorkerRole*)malloc(sizeof(WorkerRole));
+                worker->id = lastIndexWR;
+                worker->socket = workerRoleSockets[lastIndexWR];
+                worker->cs = parameters->cs;
+                Semaphore[lastIndexWR] = CreateSemaphore(NULL, 0, 1, NULL);
+                worker->semaphore = Semaphore[lastIndexWR];
+
+                add(parameters->freeWorkerRoles, worker);
+
+                WRParam* wrp = (WRParam*)malloc(sizeof(WRParam));
+                wrp->hs = parameters->hashSet;
+                wrp->worker = find(parameters->freeWorkerRoles, lastIndexWR);
+                
+                WSThreads[lastIndexWR] = CreateThread(NULL, 0, &handleWorkerRoleSend, worker, 0, &WSID[lastIndexWR]);
+                WRThreads[lastIndexWR] = CreateThread(NULL, 0, &handleWorkerRoleReceive, wrp, 0, &WRID[lastIndexWR]);
                 lastIndexWR++;
+
+                /*free(wrp);*/
                 printf("New worker role #%d assigned.\n", lastIndexWR);
             }
         }
-        else
+        else // Get Message
         {
             for (int i = 0; i < lastIndexWR; i++)
             {
                 if (FD_ISSET(workerRoleSockets[i], &writefds))
                 {
-                    //Ovde ce biti thread koji poziva handleWorkerRole funkiciju.                    
-                    //handleWorkerRole(workerRoleSockets[i], dataBuffer);
+                    int iResult = recv(workerRoleSockets[i], dataBuffer, DEFAULT_BUFLEN, 0);
+
+                    dataBuffer[iResult] = '\0';
+
+                    if (strcmp(dataBuffer, "quit") == 0)
+                    {
+                        remove(parameters->freeWorkerRoles, i);
+                        free(worker);
+                        CloseHandle(WSThreads[i]);
+                        CloseHandle(WRThreads[i]);
+                        CloseHandle(Semaphore[i]);
+                    }
+                    else
+                    {
+                        ListItem* li = find(parameters->busyWorkerRoles, i);
+                        move(parameters->busyWorkerRoles, parameters->freeWorkerRoles, li);
+                        printf("Worker Role %d is successfully moved to free!", i);
+                    }
                 }
             }
         }

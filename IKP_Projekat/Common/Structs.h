@@ -21,7 +21,6 @@ typedef struct client_struct_list_item
 typedef struct worker_role_struct
 {
 	int id;
-	bool busy;
 	SOCKET socket;
 	char message_box[DEFAULT_BUFLEN];
 	CRITICAL_SECTION cs;
@@ -221,7 +220,7 @@ typedef struct list_item
 
 typedef struct list
 {
-	int listCounter = 0;
+	int listCounter;
 	ListItem* head;
 	ListItem* tail;
 }List;
@@ -400,4 +399,22 @@ typedef struct wrparam
 }WRParam;
 #pragma endregion
 
+#pragma region CMTFun
+typedef struct cmtparam
+{
+	RingBufferQueue* queue;
+	CRITICAL_SECTION cs;
+	HashSet* hashSet;
+}CMTParam;
+#pragma endregion
+
+#pragma region WMTFun
+typedef struct wmtparam
+{
+	List* freeWorkerRoles;
+	List* busyWorkerRoles;
+	HashSet* hashSet;
+	CRITICAL_SECTION cs;
+}WMTParam;
+#pragma endregion
 #endif
