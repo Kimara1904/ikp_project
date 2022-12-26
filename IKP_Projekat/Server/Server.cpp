@@ -23,6 +23,7 @@ int main(void)
     busyWorkerRoles->listCounter = 0;
     busyWorkerRoles->head = NULL;
     busyWorkerRoles->tail = NULL;
+    InitializeCriticalSection(&bufferQueue);
 
     WMTParam* wmtparam = (WMTParam*)malloc(sizeof(WMTParam));
     wmtparam->busyWorkerRoles = busyWorkerRoles;
@@ -51,6 +52,10 @@ int main(void)
     DT = CreateThread(NULL, 0, &DTFun, dtparam, 0, &DTID);  
 
     CMT = CreateThread(NULL, 0, &CMTFunction, cmtparam, 0, &CMTID);
+
+    HANDLE mainHandles[4] = { CMT, OT, DT, WMT };
+
+    WaitForMultipleObjects(4, mainHandles, TRUE, INFINITE);
 
     WSACleanup();
     CloseHandle(CMT);

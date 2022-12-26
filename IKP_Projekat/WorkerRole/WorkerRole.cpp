@@ -57,6 +57,9 @@ int __cdecl main(int argc, char** argv)
     while (true)
     {        
         iResult = recv(workerRoleSocket, dataBuffer, DEFAULT_BUFLEN, 0);
+
+        dataBuffer[iResult] = '\0';
+
         if (strcmp(dataBuffer, "quit") == 0)
         {
             //SLANJE QUIT WMT-U
@@ -71,13 +74,17 @@ int __cdecl main(int argc, char** argv)
 
             //OBRADA PODATAKA
 
-            IdMessagePair* messagePair = (IdMessagePair*)dataBuffer;
-            
-            char processed[DEFAULT_BUFLEN] = "Done with request... sending it back... ";
-            strcat_s(processed, messagePair->message);
-            sResult = send(workerRoleSocket, messagePair->clientId + processed, sizeof(messagePair->clientId + processed), 0);
+            IdMessagePair messagePair;
 
-            printf("Sending back data to loadBalancer. Request was originally from: client #%d", messagePair->clientId);
+            sscanf_s(dataBuffer, "%d %s", &messagePair.clientId, messagePair.message, sizeof(messagePair.message));
+            
+            char processed[50] = "Done with request... sending it back...";
+            strcat_s(processed, messagePair.message);
+
+            sprintf_s(dataBuffer, "%d %s", messagePair.clientId, processed);
+            sResult = send(workerRoleSocket, dataBuffer, (int)strlen(dataBuffer), 0);
+
+            printf("Sending back data to loadBalancer. Request was originally from: client #%d", messagePair.clientId);
 
             if (sResult == SOCKET_ERROR)
             {

@@ -93,6 +93,12 @@ DWORD WINAPI handleClientRecieve(LPVOID params) //Kada primimo poruku od klijent
     while(true)
     {
         iResult = recv(clientSocket, clientMessage, DEFAULT_BUFLEN, 0);
+
+        if (iResult <= 0)
+        {
+            continue;
+        }
+
         clientMessage[iResult] = '\0';
 
         IdMessagePair clientMessagePair = { clientId,""};
@@ -137,26 +143,28 @@ DWORD WINAPI handleWorkerRoleReceive(LPVOID params)
     {        
         iResult = recv(worker->wr->socket, worker->wr->message_box, DEFAULT_BUFLEN, 0);
 
+        worker->wr->message_box[iResult] = '\n';
+
         if (iResult > 1)
         {
-            IdMessagePair* clientInfo = (IdMessagePair*)worker->wr->message_box;
+            IdMessagePair* clientInfo = (IdMessagePair*)malloc(sizeof(IdMessagePair));
+            sscanf_s(worker->wr->message_box, "%d %[^\n]", &clientInfo->clientId, clientInfo->message, sizeof(clientInfo->message));
             HashItem* client = findNodeHash(hs, clientInfo->clientId % hs->size, clientInfo->clientId);
 
-            sResult = send(client->clientInfo->socket, clientInfo->message, DEFAULT_BUFLEN, 0);
+            sResult = send(client->clientInfo->socket, clientInfo->message, (int)strlen(clientInfo->message), 0);
 
-            printf("Sending back data CLIENT #%d", clientInfo->clientId);
+            printf("Sending back data CLIENT #%d: %s", clientInfo->clientId, clientInfo->message);
 
             if (sResult == SOCKET_ERROR)
             {
                 printf("Sending data to CLIENT #%d failed\n", clientInfo->clientId);
             }
+            free(clientInfo);
         }
         //NEED MAYBE FIX
         else
         {
-            printf("Error receiving done message from WR %d:", worker->wr->id);
-            closesocket(worker->wr->socket);
-            WSACleanup();
+            continue;
         }
     }
     free(parameters);
@@ -216,7 +224,7 @@ DWORD WINAPI DTFun(LPVOID params)
         LeaveCriticalSection(&freeWorker->wr->cs);
 
         char message[DEFAULT_BUFLEN];
-        strcpy_s(message, DEFAULT_BUFLEN, messagePair.clientId + messagePair.message);
+        sprintf_s(message, "%d %s", messagePair.clientId, messagePair.message);
         strcpy_s(freeWorker->wr->message_box, DEFAULT_BUFLEN, message);
 
         move(parameters->freeWorkerRole, parameters->busyWorkerRole, freeWorker);
@@ -333,8 +341,14 @@ DWORD WINAPI CMTFunction(LPVOID params)
                 if (FD_ISSET(clientSockets[i], &readfds))
                 {
                     int iResult = recv(clientSockets[i], dataBuffer, DEFAULT_BUFLEN, 0);
+                    if (iResult <= 0)
+                    {
+                        continue;
+                    }
 
                     dataBuffer[iResult] = '\0';
+
+                    printf("From client we got message: %s\n", dataBuffer);
 
                     if (strcmp(dataBuffer, "quit") == 0)
                     {
@@ -457,7 +471,7 @@ DWORD WINAPI WMTFunction(LPVOID params)
                 wrp->hs = parameters->hashSet;
                 wrp->worker = find(parameters->freeWorkerRoles, lastIndexWR);
                 
-                WSThreads[lastIndexWR] = CreateThread(NULL, 0, &handleWorkerRoleSend, worker, 0, &WSID[lastIndexWR]);
+                WSThreads[lastIndexWR] = CreateThread(NULL, 0, &handleWorkerRoleSend, wrp->worker, 0, &WSID[lastIndexWR]);
                 WRThreads[lastIndexWR] = CreateThread(NULL, 0, &handleWorkerRoleReceive, wrp, 0, &WRID[lastIndexWR]);
                 lastIndexWR++;
 
@@ -471,7 +485,12 @@ DWORD WINAPI WMTFunction(LPVOID params)
             {
                 if (FD_ISSET(workerRoleSockets[i], &writefds))
                 {
-                    int iResult = recv(workerRoleSockets[i], dataBuffer, DEFAULT_BUFLEN, 0);
+                    /*int iResult = recv(workerRoleSockets[i], dataBuffer, DEFAULT_BUFLEN, 0);
+
+                    if (iResult <= 0)
+                    {
+                        continue;
+                    }
 
                     dataBuffer[iResult] = '\0';
 
@@ -488,7 +507,7 @@ DWORD WINAPI WMTFunction(LPVOID params)
                         ListItem* li = find(parameters->busyWorkerRoles, i);
                         move(parameters->busyWorkerRoles, parameters->freeWorkerRoles, li);
                         printf("Worker Role %d is successfully moved to free!", i);
-                    }
+                    }*/
                 }
             }
         }

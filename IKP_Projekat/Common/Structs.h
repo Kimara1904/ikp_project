@@ -80,11 +80,6 @@ float Capacity(RingBufferQueue* queue)
 		return -1;
 	}
 
-	if (queue->cnt == 0)
-	{
-		return -1;
-	}
-
 	return (float)(queue->cnt) / RING_SIZE * 100;
 }
 #pragma endregion
@@ -152,6 +147,16 @@ bool insertHashItem(HashSet* hs, int index, ClientListItem* client)
 	}
 
 	HashItem* current = hs->hashlist[index];
+
+	if (current == NULL)
+	{
+		current = (HashItem*)malloc(sizeof(HashItem));
+		current->clientInfo = client;
+		current->index = index;
+		current->next = NULL;
+		hs->hashlist[index] = current;
+		return true;
+	}
 
 	while (current->next != NULL)
 	{
@@ -320,9 +325,21 @@ bool move(List* src, List* dest, ListItem* item) // from list src to list dest m
 			src->tail = previous; //Last in src
 		}
 
-		dest->tail->next = current;
-		dest->tail = current;
-		current->next = NULL;
+		src->listCounter--;
+
+		if (dest->tail == NULL)
+		{
+			dest->head = current;
+			dest->tail = current;
+		}
+		else 
+		{
+			dest->tail->next = current;
+			dest->tail = current;
+			current->next = NULL;
+		}
+
+		dest->listCounter++;
 		return true;
 	}
 	else
