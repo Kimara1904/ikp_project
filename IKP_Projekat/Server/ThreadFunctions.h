@@ -486,13 +486,17 @@ DWORD WINAPI WMTFunction(LPVOID params)
                 if (FD_ISSET(workerRoleSockets[i], &writefds))
                 {
                     int iResult = recv(workerRoleSockets[i], dataBuffer, DEFAULT_BUFLEN, 0);
-
+                    
                     if (iResult <= 0)
                     {
                         continue;
                     }
 
                     dataBuffer[iResult] = '\0';
+
+                    ListItem* li = find(parameters->busyWorkerRoles, i);
+
+                    worker = li->wr;
 
                     if (strcmp(dataBuffer, "quit") == 0)
                     {
@@ -504,8 +508,7 @@ DWORD WINAPI WMTFunction(LPVOID params)
                         CloseHandle(SemaphoreWR[i]);
                     }
                     else
-                    {
-                        ListItem* li = find(parameters->busyWorkerRoles, i);
+                    {                        
                         move(parameters->busyWorkerRoles, parameters->freeWorkerRoles, li);
                         printf("Worker Role %d is successfully moved to free!\n", i);
                         strcpy(worker->message_box, dataBuffer);
