@@ -84,7 +84,7 @@ int __cdecl main(int argc, char** argv)
             sprintf_s(dataBuffer, "%d %s", messagePair.clientId, processed);
             sResult = send(workerRoleSocket, dataBuffer, (int)strlen(dataBuffer), 0);
 
-            printf("Sending back data to loadBalancer. Request was originally from: client #%d", messagePair.clientId);
+            printf("Sending back data to loadBalancer. Request was originally from: client #%d, %s", messagePair.clientId, messagePair.message);
 
             if (sResult == SOCKET_ERROR)
             {

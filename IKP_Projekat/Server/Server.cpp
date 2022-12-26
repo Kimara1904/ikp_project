@@ -1,6 +1,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #define WINDOWS_IGNORE_PACKING_MISMATCH
+#define _CRT_SECURE_NO_WARNINGS
 
 #include "ThreadFunctions.h"
 #pragma pack(1)

@@ -86,6 +86,9 @@ int __cdecl main(int argc, char** argv)
         printf("Bytes Sent: %ld\n", iResult);
 
         iResult = recv(connectSocket, message, DEFAULT_BUFLEN, 0);
+
+        message[iResult] = '\0';
+
         if (iResult > 0)
         {
             printf("Message received back from server: %s\n", message);

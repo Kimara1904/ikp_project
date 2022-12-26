@@ -143,12 +143,14 @@ DWORD WINAPI handleWorkerRoleReceive(LPVOID params)
     {        
         iResult = recv(worker->wr->socket, worker->wr->message_box, DEFAULT_BUFLEN, 0);
 
-        worker->wr->message_box[iResult] = '\n';
-
         if (iResult > 1)
         {
+            //0 Done proccsing reuqest 'cao'
+            worker->wr->message_box[iResult] = '\0';
             IdMessagePair* clientInfo = (IdMessagePair*)malloc(sizeof(IdMessagePair));
-            sscanf_s(worker->wr->message_box, "%d %[^\n]", &clientInfo->clientId, clientInfo->message, sizeof(clientInfo->message));
+            sscanf_s(worker->wr->message_box, "%d ", &clientInfo->clientId);
+            strcpy(clientInfo->message,worker->wr->message_box + 2);
+
             HashItem* client = findNodeHash(hs, clientInfo->clientId % hs->size, clientInfo->clientId);
 
             sResult = send(client->clientInfo->socket, clientInfo->message, (int)strlen(clientInfo->message), 0);
