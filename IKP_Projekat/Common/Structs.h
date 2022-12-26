@@ -9,13 +9,15 @@
 #include "conio.h"
 
 #define DEFAULT_BUFLEN 512
-#define RING_SIZE 128
+#define MAX_HASH_LIST 5
+#define RING_SIZE 5
 
 typedef struct client_struct_list_item
 {
 	int id;
 	SOCKET socket;
 	char request_message[DEFAULT_BUFLEN];
+	HANDLE semaphore;
 }ClientListItem;
 
 typedef struct worker_role_struct
@@ -24,7 +26,7 @@ typedef struct worker_role_struct
 	SOCKET socket;
 	char message_box[DEFAULT_BUFLEN];
 	CRITICAL_SECTION cs;
-	HANDLE semaphore;
+	HANDLE semaphore[2];
 }WorkerRole;
 
 typedef struct clientid_message_pair
@@ -95,7 +97,7 @@ typedef struct hash_item
 typedef struct hash_set
 {
 	int size;
-	HashItem** hashlist;
+	HashItem* hashlist[MAX_HASH_LIST];
 }HashSet;
 
 HashSet* createHashSet(int size)
@@ -109,7 +111,11 @@ HashSet* createHashSet(int size)
 	}
 
 	hs->size = size;
-	hs->hashlist = (HashItem**)calloc(size, sizeof(HashItem));
+	
+	for (int i = 0; i < MAX_HASH_LIST; i++)
+	{
+		hs->hashlist[i] = NULL;
+	}
 
 	if (hs->hashlist == NULL)
 	{

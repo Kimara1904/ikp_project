@@ -11,7 +11,7 @@ int main(void)
 {    
     DWORD CMTID, OTID, DTID, WMTID;
     HANDLE CMT, OT, DT, WMT;
-    HashSet* hashSet = createHashSet(MAX_CLIENTS);
+    HashSet* hashSet = createHashSet(MAX_HASH_LIST);
     RingBufferQueue* queue = (RingBufferQueue*)malloc(sizeof(RingBufferQueue));
     queue->cnt = 0;
     queue->head = 0;

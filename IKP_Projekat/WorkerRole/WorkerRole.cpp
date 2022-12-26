@@ -1,5 +1,6 @@
 #define WIN32_LEAN_AND_MEAN
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS
 
 #include "../Common/Structs.h"
 
@@ -76,16 +77,17 @@ int __cdecl main(int argc, char** argv)
 
             IdMessagePair messagePair;
 
-            sscanf_s(dataBuffer, "%d %s", &messagePair.clientId, messagePair.message, sizeof(messagePair.message));
+            sscanf_s(dataBuffer, "%d ", &messagePair.clientId);
+            strcpy(messagePair.message, dataBuffer + 2);
             
             char processed[50] = "Done with request... sending it back...";
-            strcat_s(processed, messagePair.message);
 
-            sprintf_s(dataBuffer, "%d %s", messagePair.clientId, processed);
+            sprintf_s(dataBuffer, "%d %s %s", messagePair.clientId, processed, messagePair.message);
             sResult = send(workerRoleSocket, dataBuffer, (int)strlen(dataBuffer), 0);
 
-            printf("Sending back data to loadBalancer. Request was originally from: client #%d, %s", messagePair.clientId, messagePair.message);
+            printf("Sending back data to loadBalancer. Request was originally from: client #%d, %s\n", messagePair.clientId, messagePair.message);
 
+            memset(dataBuffer, 0, DEFAULT_BUFLEN);
             if (sResult == SOCKET_ERROR)
             {
                 printf("Sending processed data failed with error: %d\n", WSAGetLastError());

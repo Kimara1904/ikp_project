@@ -83,24 +83,14 @@ SOCKET connectTo(short port)
 //CLIENT WRITE THREAD!
 DWORD WINAPI handleClientRecieve(LPVOID params) //Kada primimo poruku od klijenta
 {
-    int iResult;
 
     WTParam* parameters = (WTParam*)params;
-    SOCKET clientSocket = parameters->client->socket;
     int clientId = parameters->client->id;
     char* clientMessage = parameters->client->request_message;
 
     while(true)
     {
-        iResult = recv(clientSocket, clientMessage, DEFAULT_BUFLEN, 0);
-
-        if (iResult <= 0)
-        {
-            continue;
-        }
-
-        clientMessage[iResult] = '\0';
-
+        WaitForSingleObject(parameters->client->semaphore, INFINITE);
         IdMessagePair clientMessagePair = { clientId,""};
         strcpy_s(clientMessagePair.message, DEFAULT_BUFLEN, clientMessage);
 
@@ -118,7 +108,7 @@ DWORD WINAPI handleWorkerRoleSend(LPVOID params)
     ListItem* worker = (ListItem*)params;
     while (true)
     {
-        WaitForSingleObject(worker->wr->semaphore, INFINITE);
+        WaitForSingleObject(worker->wr->semaphore[0], INFINITE);
 
         iResult = send(worker->wr->socket, worker->wr->message_box, (int)strlen(worker->wr->message_box), 0);
         if (iResult == SOCKET_ERROR)
@@ -140,36 +130,27 @@ DWORD WINAPI handleWorkerRoleReceive(LPVOID params)
     HashSet* hs = parameters->hs;
 
     while (true)
-    {        
-        iResult = recv(worker->wr->socket, worker->wr->message_box, DEFAULT_BUFLEN, 0);
+	{
+		WaitForSingleObject(worker->wr->semaphore[1], INFINITE);
 
-        if (iResult > 1)
-        {
-            //0 Done proccsing reuqest 'cao'
-            worker->wr->message_box[iResult] = '\0';
-            IdMessagePair* clientInfo = (IdMessagePair*)malloc(sizeof(IdMessagePair));
-            sscanf_s(worker->wr->message_box, "%d ", &clientInfo->clientId);
-            strcpy(clientInfo->message,worker->wr->message_box + 2);
+		IdMessagePair* clientInfo = (IdMessagePair*)malloc(sizeof(IdMessagePair));
+		sscanf_s(worker->wr->message_box, "%d ", &clientInfo->clientId);
+		strcpy(clientInfo->message, worker->wr->message_box + 2);
 
-            HashItem* client = findNodeHash(hs, clientInfo->clientId % hs->size, clientInfo->clientId);
+		HashItem* client = findNodeHash(hs, clientInfo->clientId % hs->size, clientInfo->clientId);
 
-            sResult = send(client->clientInfo->socket, clientInfo->message, (int)strlen(clientInfo->message), 0);
+		sResult = send(client->clientInfo->socket, clientInfo->message, (int)strlen(clientInfo->message), 0);
 
-            printf("Sending back data CLIENT #%d: %s", clientInfo->clientId, clientInfo->message);
+		printf("Sending back data CLIENT #%d: %s\n", clientInfo->clientId, clientInfo->message);
 
-            if (sResult == SOCKET_ERROR)
-            {
-                printf("Sending data to CLIENT #%d failed\n", clientInfo->clientId);
-            }
-            free(clientInfo);
-        }
-        //NEED MAYBE FIX
-        else
-        {
-            continue;
-        }
-    }
-    free(parameters);
+		if (sResult == SOCKET_ERROR)
+		{
+			printf("Sending data to CLIENT #%d failed\n", clientInfo->clientId);
+		}
+		free(clientInfo);
+        memset(clientInfo->message, 0, DEFAULT_BUFLEN);
+	}
+	free(parameters);
 }
 
 //OBSERVER THREAD - LITTLE CHANGE NEEDED MAYBE
@@ -231,7 +212,7 @@ DWORD WINAPI DTFun(LPVOID params)
 
         move(parameters->freeWorkerRole, parameters->busyWorkerRole, freeWorker);
 
-        ReleaseSemaphore(freeWorker->wr->semaphore, 1, NULL);
+        ReleaseSemaphore(freeWorker->wr->semaphore[0], 1, NULL);
     }    
 }
 
@@ -245,6 +226,7 @@ DWORD WINAPI CMTFunction(LPVOID params)
     char dataBuffer[DEFAULT_BUFLEN];
     DWORD TID[MAX_CLIENTS];
     HANDLE threads[MAX_CLIENTS];
+    HANDLE Semaphore[MAX_CLIENTS];
     CMTParam* parameters = (CMTParam*)params;
     ClientListItem* client = NULL;
 
@@ -317,12 +299,15 @@ DWORD WINAPI CMTFunction(LPVOID params)
                     continue;
                 }
 
+                Semaphore[lastIndex] = CreateSemaphore(NULL, 0, 1, NULL);
+
                 client = (ClientListItem*)malloc(sizeof(ClientListItem));
                 client->id = lastIndex;
                 client->socket = clientSockets[lastIndex];
+                client->semaphore = Semaphore[lastIndex];
                 strcpy_s(client->request_message, DEFAULT_BUFLEN, "");
 
-                insertHashItem(parameters->hashSet, lastIndex % MAX_CLIENTS, client);
+                insertHashItem(parameters->hashSet, lastIndex % MAX_HASH_LIST, client);
 
                 WTParam* wtp = (WTParam*)malloc(sizeof(WTParam));
                 wtp->client = client;
@@ -352,11 +337,21 @@ DWORD WINAPI CMTFunction(LPVOID params)
 
                     printf("From client we got message: %s\n", dataBuffer);
 
+                    HashItem* item = findNodeHash(parameters->hashSet, i % MAX_HASH_LIST, i);
+
+                    client = item->clientInfo;
+
                     if (strcmp(dataBuffer, "quit") == 0)
                     {
-                        deleteHashItem(parameters->hashSet, i% MAX_CLIENTS, i);
+                        deleteHashItem(parameters->hashSet, i% MAX_HASH_LIST, i);
                         free(client);
                         CloseHandle(threads[i]);
+                        CloseHandle(Semaphore[i]);
+                    }
+                    else
+                    {
+                        strcpy(client->request_message, dataBuffer);
+                        ReleaseSemaphore(client->semaphore, 1, NULL);
                     }
                 }
             }
@@ -385,7 +380,8 @@ DWORD WINAPI WMTFunction(LPVOID params)
     HANDLE WSThreads[MAX_CLIENTS];
     DWORD WRID[MAX_CLIENTS];
     HANDLE WRThreads[MAX_CLIENTS];
-    HANDLE Semaphore[MAX_CLIENTS];
+    HANDLE SemaphoreWR[MAX_CLIENTS];
+    HANDLE SemaphoreWS[MAX_CLIENTS];
     WMTParam* parameters = (WMTParam*)params;
     WorkerRole* worker = NULL;
 
@@ -464,8 +460,10 @@ DWORD WINAPI WMTFunction(LPVOID params)
                 worker->id = lastIndexWR;
                 worker->socket = workerRoleSockets[lastIndexWR];
                 worker->cs = parameters->cs;
-                Semaphore[lastIndexWR] = CreateSemaphore(NULL, 0, 1, NULL);
-                worker->semaphore = Semaphore[lastIndexWR];
+                SemaphoreWR[lastIndexWR] = CreateSemaphore(NULL, 0, 1, NULL);
+                SemaphoreWS[lastIndexWR] = CreateSemaphore(NULL, 0, 1, NULL);
+                worker->semaphore[0] = SemaphoreWS[lastIndexWR];
+                worker->semaphore[1] = SemaphoreWR[lastIndexWR];
 
                 add(parameters->freeWorkerRoles, worker);
 
@@ -487,7 +485,7 @@ DWORD WINAPI WMTFunction(LPVOID params)
             {
                 if (FD_ISSET(workerRoleSockets[i], &writefds))
                 {
-                    /*int iResult = recv(workerRoleSockets[i], dataBuffer, DEFAULT_BUFLEN, 0);
+                    int iResult = recv(workerRoleSockets[i], dataBuffer, DEFAULT_BUFLEN, 0);
 
                     if (iResult <= 0)
                     {
@@ -502,14 +500,17 @@ DWORD WINAPI WMTFunction(LPVOID params)
                         free(worker);
                         CloseHandle(WSThreads[i]);
                         CloseHandle(WRThreads[i]);
-                        CloseHandle(Semaphore[i]);
+                        CloseHandle(SemaphoreWS[i]);
+                        CloseHandle(SemaphoreWR[i]);
                     }
                     else
                     {
                         ListItem* li = find(parameters->busyWorkerRoles, i);
                         move(parameters->busyWorkerRoles, parameters->freeWorkerRoles, li);
-                        printf("Worker Role %d is successfully moved to free!", i);
-                    }*/
+                        printf("Worker Role %d is successfully moved to free!\n", i);
+                        strcpy(worker->message_box, dataBuffer);
+                        ReleaseSemaphore(worker->semaphore[1], 1, NULL);
+                    }
                 }
             }
         }
