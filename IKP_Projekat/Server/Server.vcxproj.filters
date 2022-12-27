@@ -4,6 +4,13 @@
     <ClCompile Include="Server.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="ThreadFunctions.h" />
+    <ClInclude Include="WorkerManagerThread.h" />
+    <ClInclude Include="CommunicationFunctions.h" />
+    <ClInclude Include="WriterThread.h" />
+    <ClInclude Include="ClientManagerThread.h" />
+    <ClInclude Include="WorkerRoleSend.h" />
+    <ClInclude Include="WorkerRoleReciver.h" />
+    <ClInclude Include="ObserverThread.h" />
+    <ClInclude Include="DispatcherThread.h" />
   </ItemGroup>
 </Project>

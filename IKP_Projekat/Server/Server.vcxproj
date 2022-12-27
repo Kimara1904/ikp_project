@@ -22,7 +22,14 @@
     <ClCompile Include="Server.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="ThreadFunctions.h" />
+    <ClInclude Include="ClientManagerThread.h" />
+    <ClInclude Include="CommunicationFunctions.h" />
+    <ClInclude Include="DispatcherThread.h" />
+    <ClInclude Include="ObserverThread.h" />
+    <ClInclude Include="WorkerManagerThread.h" />
+    <ClInclude Include="WorkerRoleReciver.h" />
+    <ClInclude Include="WorkerRoleSend.h" />
+    <ClInclude Include="WriterThread.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>

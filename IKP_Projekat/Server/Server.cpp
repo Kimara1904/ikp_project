@@ -3,7 +3,12 @@
 #define WINDOWS_IGNORE_PACKING_MISMATCH
 #define _CRT_SECURE_NO_WARNINGS
 
-#include "ThreadFunctions.h"
+#include "CommunicationFunctions.h"
+#include "ClientManagerThread.h"
+#include "ObserverThread.h"
+#include "DispatcherThread.h"
+#include "WorkerManagerThread.h"
+
 #pragma pack(1)
 
 CRITICAL_SECTION bufferQueue;
