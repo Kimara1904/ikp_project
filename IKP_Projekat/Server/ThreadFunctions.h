@@ -223,6 +223,7 @@ DWORD WINAPI CMTFunction(LPVOID params)
     SOCKET clientSockets[MAX_CLIENTS];
     unsigned long  mode = 1;
     short lastIndex = 0;
+    bool taken[MAX_CLIENTS] = { false };
     char dataBuffer[DEFAULT_BUFLEN];
     DWORD TID[MAX_CLIENTS];
     HANDLE threads[MAX_CLIENTS];
@@ -260,9 +261,12 @@ DWORD WINAPI CMTFunction(LPVOID params)
             FD_SET(listenSocket, &readfds);
         }
 
-        for (int i = 0; i < lastIndex; i++)
+        for (int i = 0; i < MAX_CLIENTS; i++)
         {
-            FD_SET(clientSockets[i], &readfds);
+            if (taken[i])
+            {
+                FD_SET(clientSockets[i], &readfds);
+            }
         }
 
         int selectResult = select(0, &readfds, NULL, NULL, &timeVal);
@@ -281,77 +285,90 @@ DWORD WINAPI CMTFunction(LPVOID params)
         }
         else if (FD_ISSET(listenSocket, &readfds)) // Connect with client
         {
-            sockaddr_in clientAddr;
-            int clientAddrSize = sizeof(struct sockaddr_in);
-            
-
-            clientSockets[lastIndex] = accept(listenSocket, (struct sockaddr*)&clientAddr, &clientAddrSize);
-
-            if (clientSockets[lastIndex] == INVALID_SOCKET)
+            for (int i = 0; i < MAX_CLIENTS; i++)
             {
-                printf("Accept failed with error: %d\n", WSAGetLastError());
-            }
-            else
-            {
-                if (ioctlsocket(clientSockets[lastIndex], FIONBIO, &mode) != 0)
+                if (!taken[i])
                 {
-                    printf("ioctlsocket failed with error.");
-                    continue;
+                    sockaddr_in clientAddr;
+                    int clientAddrSize = sizeof(struct sockaddr_in);
+
+
+                    clientSockets[i] = accept(listenSocket, (struct sockaddr*)&clientAddr, &clientAddrSize);
+
+                    if (clientSockets[i] == INVALID_SOCKET)
+                    {
+                        printf("Accept failed with error: %d\n", WSAGetLastError());
+                    }
+                    else
+                    {
+                        if (ioctlsocket(clientSockets[i], FIONBIO, &mode) != 0)
+                        {
+                            printf("ioctlsocket failed with error.");
+                            continue;
+                        }
+
+                        Semaphore[i] = CreateSemaphore(NULL, 0, 1, NULL);
+
+                        client = (ClientListItem*)malloc(sizeof(ClientListItem));
+                        client->id = i;
+                        client->socket = clientSockets[i];
+                        client->semaphore = Semaphore[i];
+                        strcpy_s(client->request_message, DEFAULT_BUFLEN, "");
+
+                        insertHashItem(parameters->hashSet, i % MAX_HASH_LIST, client);
+
+                        WTParam* wtp = (WTParam*)malloc(sizeof(WTParam));
+                        wtp->client = client;
+                        wtp->cs = parameters->cs;
+                        wtp->queue = parameters->queue;
+
+                        threads[lastIndex] = CreateThread(NULL, 0, &handleClientRecieve, wtp, 0, &TID[i]);
+                        /*free(wtp);*/
+                        taken[i] = true;
+                        lastIndex++;
+                        printf("New client #%d accepted. We have %d clients spaces left.\n", i, MAX_CLIENTS - lastIndex);
+                    }
                 }
-
-                Semaphore[lastIndex] = CreateSemaphore(NULL, 0, 1, NULL);
-
-                client = (ClientListItem*)malloc(sizeof(ClientListItem));
-                client->id = lastIndex;
-                client->socket = clientSockets[lastIndex];
-                client->semaphore = Semaphore[lastIndex];
-                strcpy_s(client->request_message, DEFAULT_BUFLEN, "");
-
-                insertHashItem(parameters->hashSet, lastIndex % MAX_HASH_LIST, client);
-
-                WTParam* wtp = (WTParam*)malloc(sizeof(WTParam));
-                wtp->client = client;
-                wtp->cs = parameters->cs;
-                wtp->queue = parameters->queue;
-
-                threads[lastIndex] = CreateThread(NULL, 0, &handleClientRecieve, wtp, 0, &TID[lastIndex]);
-                /*free(wtp);*/
-                lastIndex++;
-                printf("New client #%d accepted. We have %d clients spaces left.\n", lastIndex, MAX_CLIENTS - lastIndex);
             }
+            
         }
         else // Get a message
         {
             //proveravamo da li je poslat quit i gasimo threads ako dodje do toga
-            for (int i = 0; i < lastIndex; i++)
+            for (int i = 0; i < MAX_CLIENTS; i++)
             {
-                if (FD_ISSET(clientSockets[i], &readfds))
+                if (taken[i])
                 {
-                    int iResult = recv(clientSockets[i], dataBuffer, DEFAULT_BUFLEN, 0);
-                    if (iResult <= 0)
+                    if (FD_ISSET(clientSockets[i], &readfds))
                     {
-                        continue;
-                    }
+                        int iResult = recv(clientSockets[i], dataBuffer, DEFAULT_BUFLEN, 0);
+                        if (iResult <= 0)
+                        {
+                            continue;
+                        }
 
-                    dataBuffer[iResult] = '\0';
+                        dataBuffer[iResult] = '\0';
 
-                    printf("From client we got message: %s\n", dataBuffer);
+                        printf("From client we got message: %s\n", dataBuffer);
 
-                    HashItem* item = findNodeHash(parameters->hashSet, i % MAX_HASH_LIST, i);
+                        HashItem* item = findNodeHash(parameters->hashSet, i % MAX_HASH_LIST, i);
 
-                    client = item->clientInfo;
+                        client = item->clientInfo;
 
-                    if (strcmp(dataBuffer, "quit") == 0)
-                    {
-                        deleteHashItem(parameters->hashSet, i% MAX_HASH_LIST, i);
-                        free(client);
-                        CloseHandle(threads[i]);
-                        CloseHandle(Semaphore[i]);
-                    }
-                    else
-                    {
-                        strcpy(client->request_message, dataBuffer);
-                        ReleaseSemaphore(client->semaphore, 1, NULL);
+                        if (strcmp(dataBuffer, "quit") == 0)
+                        {
+                            deleteHashItem(parameters->hashSet, i % MAX_HASH_LIST, i);
+                            free(client);
+                            CloseHandle(threads[i]);
+                            CloseHandle(Semaphore[i]);
+                            taken[i] = false;
+                            lastIndex--;
+                        }
+                        else
+                        {
+                            strcpy(client->request_message, dataBuffer);
+                            ReleaseSemaphore(client->semaphore, 1, NULL);
+                        }
                     }
                 }
             }
@@ -375,6 +392,7 @@ DWORD WINAPI WMTFunction(LPVOID params)
     SOCKET workerRoleSockets[MAX_WORKER_ROLE];
     unsigned long  mode = 1;
     short lastIndexWR = 0;
+    bool taken[MAX_WORKER_ROLE] = { false };
     char dataBuffer[DEFAULT_BUFLEN];
     DWORD WSID[MAX_CLIENTS];
     HANDLE WSThreads[MAX_CLIENTS];
@@ -418,9 +436,12 @@ DWORD WINAPI WMTFunction(LPVOID params)
             FD_SET(listenSocketWR, &readfdsWR);
         }
 
-        for (int i = 0; i < lastIndexWR; i++)
+        for (int i = 0; i < MAX_WORKER_ROLE; i++)
         {
-            FD_SET(workerRoleSockets[i], &writefds);
+            if (taken[i])
+            {
+                FD_SET(workerRoleSockets[i], &writefds);
+            }            
         }
 
         int selectResultWR = select(0, &readfdsWR, &writefds, NULL, &timeVal);
@@ -439,82 +460,95 @@ DWORD WINAPI WMTFunction(LPVOID params)
         }
         else if (FD_ISSET(listenSocketWR, &readfdsWR)) // Connect with Worker Role
         {
-            sockaddr_in workerRoleAddr;
-            int workerRoleAddrSize = sizeof(struct sockaddr_in);
-
-            workerRoleSockets[lastIndexWR] = accept(listenSocketWR, (struct sockaddr*)&workerRoleAddr, &workerRoleAddrSize);
-
-            if (workerRoleSockets[lastIndexWR] == INVALID_SOCKET)
+            for (int i = 0; i < MAX_WORKER_ROLE; i++)
             {
-                printf("Accept WR failed with error: %d\n", WSAGetLastError());
-            }
-            else
-            {
-                if (ioctlsocket(workerRoleSockets[lastIndexWR], FIONBIO, &mode) != 0)
+                if (!taken[i])
                 {
-                    printf("ioctlsocket failed with error.");
-                    continue;
+                    sockaddr_in workerRoleAddr;
+                    int workerRoleAddrSize = sizeof(struct sockaddr_in);
+
+                    workerRoleSockets[i] = accept(listenSocketWR, (struct sockaddr*)&workerRoleAddr, &workerRoleAddrSize);
+
+                    if (workerRoleSockets[i] == INVALID_SOCKET)
+                    {
+                        printf("Accept WR failed with error: %d\n", WSAGetLastError());
+                    }
+                    else
+                    {
+                        if (ioctlsocket(workerRoleSockets[i], FIONBIO, &mode) != 0)
+                        {
+                            printf("ioctlsocket failed with error.");
+                            continue;
+                        }
+
+                        worker = (WorkerRole*)malloc(sizeof(WorkerRole));
+                        worker->id = i;
+                        worker->socket = workerRoleSockets[i];
+                        worker->cs = parameters->cs;
+                        SemaphoreWR[i] = CreateSemaphore(NULL, 0, 1, NULL);
+                        SemaphoreWS[i] = CreateSemaphore(NULL, 0, 1, NULL);
+                        worker->semaphore[0] = SemaphoreWS[i];
+                        worker->semaphore[1] = SemaphoreWR[i];
+
+                        add(parameters->freeWorkerRoles, worker);
+
+                        WRParam* wrp = (WRParam*)malloc(sizeof(WRParam));
+                        wrp->hs = parameters->hashSet;
+                        wrp->worker = find(parameters->freeWorkerRoles, i);
+
+                        WSThreads[i] = CreateThread(NULL, 0, &handleWorkerRoleSend, wrp->worker, 0, &WSID[i]);
+                        WRThreads[i] = CreateThread(NULL, 0, &handleWorkerRoleReceive, wrp, 0, &WRID[i]);
+                        taken[i] = true;
+                        lastIndexWR++;
+
+                        /*free(wrp);*/
+                        printf("New worker role #%d assigned.\n", i);
+
+                    }
                 }
-                
-                worker = (WorkerRole*)malloc(sizeof(WorkerRole));
-                worker->id = lastIndexWR;
-                worker->socket = workerRoleSockets[lastIndexWR];
-                worker->cs = parameters->cs;
-                SemaphoreWR[lastIndexWR] = CreateSemaphore(NULL, 0, 1, NULL);
-                SemaphoreWS[lastIndexWR] = CreateSemaphore(NULL, 0, 1, NULL);
-                worker->semaphore[0] = SemaphoreWS[lastIndexWR];
-                worker->semaphore[1] = SemaphoreWR[lastIndexWR];
-
-                add(parameters->freeWorkerRoles, worker);
-
-                WRParam* wrp = (WRParam*)malloc(sizeof(WRParam));
-                wrp->hs = parameters->hashSet;
-                wrp->worker = find(parameters->freeWorkerRoles, lastIndexWR);
-                
-                WSThreads[lastIndexWR] = CreateThread(NULL, 0, &handleWorkerRoleSend, wrp->worker, 0, &WSID[lastIndexWR]);
-                WRThreads[lastIndexWR] = CreateThread(NULL, 0, &handleWorkerRoleReceive, wrp, 0, &WRID[lastIndexWR]);
-                lastIndexWR++;
-
-                /*free(wrp);*/
-                printf("New worker role #%d assigned.\n", lastIndexWR);
             }
         }
         else // Get Message
         {
-            for (int i = 0; i < lastIndexWR; i++)
+            for (int i = 0; i < MAX_WORKER_ROLE; i++)
             {
-                if (FD_ISSET(workerRoleSockets[i], &writefds))
+                if (taken[i])
                 {
-                    int iResult = recv(workerRoleSockets[i], dataBuffer, DEFAULT_BUFLEN, 0);
-                    
-                    if (iResult <= 0)
+                    if (FD_ISSET(workerRoleSockets[i], &writefds))
                     {
-                        continue;
+                        int iResult = recv(workerRoleSockets[i], dataBuffer, DEFAULT_BUFLEN, 0);
+
+                        if (iResult <= 0)
+                        {
+                            continue;
+                        }
+
+                        dataBuffer[iResult] = '\0';
+
+                        ListItem* li = find(parameters->busyWorkerRoles, i);
+
+                        worker = li->wr;
+
+                        if (strcmp(dataBuffer, "quit") == 0)
+                        {
+                            remove(parameters->freeWorkerRoles, i);
+                            free(worker);
+                            CloseHandle(WSThreads[i]);
+                            CloseHandle(WRThreads[i]);
+                            CloseHandle(SemaphoreWS[i]);
+                            CloseHandle(SemaphoreWR[i]);
+                            taken[i] = false;
+                            lastIndexWR--;
+                        }
+                        else
+                        {
+                            move(parameters->busyWorkerRoles, parameters->freeWorkerRoles, li);
+                            printf("Worker Role %d is successfully moved to free!\n", i);
+                            strcpy(worker->message_box, dataBuffer);
+                            ReleaseSemaphore(worker->semaphore[1], 1, NULL);
+                        }
                     }
-
-                    dataBuffer[iResult] = '\0';
-
-                    ListItem* li = find(parameters->busyWorkerRoles, i);
-
-                    worker = li->wr;
-
-                    if (strcmp(dataBuffer, "quit") == 0)
-                    {
-                        remove(parameters->freeWorkerRoles, i);
-                        free(worker);
-                        CloseHandle(WSThreads[i]);
-                        CloseHandle(WRThreads[i]);
-                        CloseHandle(SemaphoreWS[i]);
-                        CloseHandle(SemaphoreWR[i]);
-                    }
-                    else
-                    {                        
-                        move(parameters->busyWorkerRoles, parameters->freeWorkerRoles, li);
-                        printf("Worker Role %d is successfully moved to free!\n", i);
-                        strcpy(worker->message_box, dataBuffer);
-                        ReleaseSemaphore(worker->semaphore[1], 1, NULL);
-                    }
-                }
+                }                
             }
         }
     }
