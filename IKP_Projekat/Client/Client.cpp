@@ -19,6 +19,27 @@
 
 bool InitializeWindowsSockets();
 
+char* randstring(size_t length) {
+
+    static char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    char* randomString = NULL;
+
+    if (length) {
+        randomString = (char*)malloc(sizeof(char) * (length + 1));
+
+        if (randomString) {
+            for (int n = 0; n < length; n++) {
+                int key = rand() % (int)(sizeof(charset) - 1);
+                randomString[n] = charset[key];
+            }
+
+            randomString[length] = '\0';
+        }
+    }
+
+    return randomString;
+}
+
 int __cdecl main(int argc, char** argv)
 {
     SOCKET connectSocket = INVALID_SOCKET;
@@ -59,12 +80,16 @@ int __cdecl main(int argc, char** argv)
 
     while (true)
     {
-        printf("Send a message to server:\n");
-        fgets(message, sizeof(message), stdin);
-        if ((strlen(message) > 0) && (message[strlen(message) - 1] == '\n'))
-        {
-            message[strlen(message) - 1] = '\0';
+        Sleep(500);
+        char* string = randstring(rand() % (DEFAULT_BUFLEN - 2) + 1);
+        strcpy_s(message, DEFAULT_BUFLEN, string);
+
+        if (_kbhit()) {
+            if (_getch() == 'q') {
+                strcpy_s(message, DEFAULT_BUFLEN, "quit");
+            }
         }
+        printf("Sending %s:\n", message);        
 
         iResult = send(connectSocket, message, (int)strlen(message) + 1, 0);
 

@@ -10,7 +10,7 @@ DWORD WINAPI DTFun(LPVOID params)
     DTParam* parameters = (DTParam*)params;
     while (true)
     {
-        //Sleep(27000); - ZA TESTIRANJE VISE WORKER ROLA DA SE GASE I PALE A PALE SE A BGM SE I GASE
+        Sleep(2000);
 
         if (Capacity(parameters->queue) == 0)
         {
