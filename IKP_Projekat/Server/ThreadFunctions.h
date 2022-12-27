@@ -120,7 +120,7 @@ DWORD WINAPI handleWorkerRoleSend(LPVOID params)
     }
 }
 
-//SALJEMO SA WORKER ROLE ODOGOVARAJUCEM KLIJENTU - MAYBE CHANGE
+//SALJEMO SA WORKER ROLE ODOGOVARAJUCEM KLIJENTU
 DWORD WINAPI handleWorkerRoleReceive(LPVOID params)
 {
     int iResult;   
@@ -153,7 +153,7 @@ DWORD WINAPI handleWorkerRoleReceive(LPVOID params)
 	free(parameters);
 }
 
-//OBSERVER THREAD - LITTLE CHANGE NEEDED MAYBE
+//OBSERVER THREAD
 DWORD WINAPI OTFun(LPVOID params)
 {
     while (true)
@@ -163,7 +163,36 @@ DWORD WINAPI OTFun(LPVOID params)
 
         if (capacity > 70)
         {
-            system("../../WorkerRole/Debug/WorkerRole.exe");
+            if (capacity > 70)
+            {
+                const char* ime_programa = "C:\\Users\\zdrav\\Desktop\\ikp_project\\IKP_Projekat\\x64\\Debug\\WorkerRole.exe";
+                int duzina = MultiByteToWideChar(CP_ACP, 0, ime_programa, -1, NULL, 0);
+                wchar_t* ime_programa_wide = (wchar_t*)malloc(duzina * sizeof(wchar_t));
+                MultiByteToWideChar(CP_ACP, 0, ime_programa, -1, ime_programa_wide, duzina);
+
+                STARTUPINFO si;
+                PROCESS_INFORMATION pi;
+
+                ZeroMemory(&si, sizeof(si));
+                si.cb = sizeof(si);
+                ZeroMemory(&pi, sizeof(pi));
+
+                // Pokretanje programa.exe
+                if (CreateProcess(ime_programa_wide,  // Ime programa
+                    NULL,                        // Komandna linija
+                    NULL,                        // Proces specifikacije
+                    NULL,                        // Tred specifikacije
+                    FALSE,                       // Ne koristi se handle
+                    0,                           // Bez specijalnog pokretanja
+                    NULL,                        // Nekoristi se okruzenje
+                    NULL,                        // Nekoristi se radni direktorijum
+                    &si,                         // Struktura STARTUPINFO
+                    &pi)) {                      // Struktura PROCESS_INFORMATION
+                    parameters->workerList->listCounter++;
+                }
+
+                free(ime_programa_wide);
+            }
         }
         else if (capacity < 30 && parameters->workerList->listCounter > 1)
         {
@@ -186,6 +215,7 @@ DWORD WINAPI OTFun(LPVOID params)
 //DISPATCH THREAD
 DWORD WINAPI DTFun(LPVOID params)
 {
+    //Sleep(40000);
     DTParam* parameters = (DTParam*)params;     
     while (true)
     {
@@ -327,6 +357,7 @@ DWORD WINAPI CMTFunction(LPVOID params)
                         taken[i] = true;
                         lastIndex++;
                         printf("New client #%d accepted. We have %d clients spaces left.\n", i, MAX_CLIENTS - lastIndex);
+                        break;
                     }
                 }
             }
@@ -503,7 +534,7 @@ DWORD WINAPI WMTFunction(LPVOID params)
 
                         /*free(wrp);*/
                         printf("New worker role #%d assigned.\n", i);
-
+                        break;
                     }
                 }
             }
