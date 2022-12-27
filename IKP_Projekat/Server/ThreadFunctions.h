@@ -160,39 +160,35 @@ DWORD WINAPI OTFun(LPVOID params)
     {
         OTParam* parameters = (OTParam*)params;        
         float capacity = Capacity(parameters->queue);
+        printf("Trenutan broj worker rola: %d\n", parameters->workerList->listCounter);
 
         if (capacity > 70)
         {
-            if (capacity > 70)
-            {
-                const char* ime_programa = "C:\\Users\\zdrav\\Desktop\\ikp_project\\IKP_Projekat\\x64\\Debug\\WorkerRole.exe";
-                int duzina = MultiByteToWideChar(CP_ACP, 0, ime_programa, -1, NULL, 0);
-                wchar_t* ime_programa_wide = (wchar_t*)malloc(duzina * sizeof(wchar_t));
-                MultiByteToWideChar(CP_ACP, 0, ime_programa, -1, ime_programa_wide, duzina);
+            const char* ime_programa = "C:\\Users\\zdrav\\Desktop\\ikp_project\\IKP_Projekat\\x64\\Debug\\WorkerRole.exe";
+            int duzina = MultiByteToWideChar(CP_ACP, 0, ime_programa, -1, NULL, 0);
+            wchar_t* ime_programa_wide = (wchar_t*)malloc(duzina * sizeof(wchar_t));
+            MultiByteToWideChar(CP_ACP, 0, ime_programa, -1, ime_programa_wide, duzina);
 
-                STARTUPINFO si;
-                PROCESS_INFORMATION pi;
+            STARTUPINFO si;
+            PROCESS_INFORMATION pi;
 
-                ZeroMemory(&si, sizeof(si));
-                si.cb = sizeof(si);
-                ZeroMemory(&pi, sizeof(pi));
+            ZeroMemory(&si, sizeof(si));
+            si.cb = sizeof(si);
+            ZeroMemory(&pi, sizeof(pi));
 
-                // Pokretanje programa.exe
-                if (CreateProcess(ime_programa_wide,  // Ime programa
-                    NULL,                        // Komandna linija
-                    NULL,                        // Proces specifikacije
-                    NULL,                        // Tred specifikacije
-                    FALSE,                       // Ne koristi se handle
-                    0,                           // Bez specijalnog pokretanja
-                    NULL,                        // Nekoristi se okruzenje
-                    NULL,                        // Nekoristi se radni direktorijum
-                    &si,                         // Struktura STARTUPINFO
-                    &pi)) {                      // Struktura PROCESS_INFORMATION
-                    parameters->workerList->listCounter++;
-                }
+            // Pokretanje programa.exe
+            if (CreateProcess(ime_programa_wide,  // Ime programa
+                NULL,                        // Komandna linija
+                NULL,                        // Proces specifikacije
+                NULL,                        // Tred specifikacije
+                FALSE,                       // Ne koristi se handle
+                0,                           // Bez specijalnog pokretanja
+                NULL,                        // Nekoristi se okruzenje
+                NULL,                        // Nekoristi se radni direktorijum
+                &si,                         // Struktura STARTUPINFO
+                &pi))
 
-                free(ime_programa_wide);
-            }
+            free(ime_programa_wide);
         }
         else if (capacity < 30 && parameters->workerList->listCounter > 1)
         {
@@ -205,7 +201,7 @@ DWORD WINAPI OTFun(LPVOID params)
             {
                 printf("ERROR: Something is wrong with removing first element of free Worker Roles!!!");
             }
-            printf("Successfully turned off Worker Role instance with id=%d.", id);
+            printf("Successfully turned off Worker Role instance with id=%d.\n", id);
             ReleaseSemaphore(parameters->workerList->head->wr->semaphore, 1, NULL);
         }
         Sleep(5000);
@@ -215,10 +211,10 @@ DWORD WINAPI OTFun(LPVOID params)
 //DISPATCH THREAD
 DWORD WINAPI DTFun(LPVOID params)
 {
-    //Sleep(40000);
     DTParam* parameters = (DTParam*)params;     
     while (true)
     {
+        //Sleep(27000); - ZA TESTIRANJE VISE WORKER ROLA DA SE GASE I PALE A PALE SE A BGM SE I GASE
 
         if (Capacity(parameters->queue) == 0)
         {
